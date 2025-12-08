@@ -1,0 +1,92 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TransactionType {
+  DEPOSIT
+  TRANSFER
+}
+
+enum TransactionStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  googleId  String?  @unique  // From Google OAuth
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  wallet    Wallet?
+  apiKeys   ApiKey[]
+  transactions Transaction[]
+
+  @@map("users")
+}
+
+model Wallet {
+  id         String      @id @default(cuid())
+  userId     String      @unique
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  balance    BigInt     @default(0)  // In kobo (e.g., 50000 = ₦500)
+  walletNumber String    @unique  // Unique 13-digit identifier for transfers (generated in code)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  transactions Transaction[]
+  receivedTransfers Transaction[] @relation("TransferRecipient")
+
+  @@map("wallets")
+}
+
+model Transaction {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  walletId    String
+  wallet      Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  type        TransactionType
+  amount      BigInt   // In kobo
+  status      TransactionStatus @default(PENDING)
+  reference   String?  @unique  // Paystack ref for deposits
+  recipientWalletNumber String?  // For transfers (for lookup)
+  recipientWalletId String?  // Foreign key to recipient wallet
+  recipientWallet Wallet? @relation("TransferRecipient", fields: [recipientWalletId], references: [id])
+  metadata    Json?    // Extra data, e.g., Paystack event
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("transactions")
+}
+
+model ApiKey {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  keyHash     String   @unique  // Hashed key for secure verification
+  keyPrefix   String   // Display prefix like "sk_live_xxxxx" for API responses
+  name        String
+  permissions String[]  // e.g., ["read", "deposit", "transfer"]
+  expiresAt   DateTime
+  revoked     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("api_keys")
+  @@index([userId, expiresAt])  // For quick active key counts
+}
