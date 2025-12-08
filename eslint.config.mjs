@@ -33,8 +33,9 @@ export default tseslint.config(
     },
   },
   // Disable type-aware rules for files that use Prisma (ESLint can't resolve generated types)
+  // and DTO files (class-validator decorators cause type inference issues)
   {
-    files: ['**/*.service.ts', '**/*.controller.ts'],
+    files: ['**/*.service.ts', '**/*.controller.ts', '**/*.dto.ts'],
     rules: {
       '@typescript-eslint/no-unsafe-assignment': 'off',
       '@typescript-eslint/no-unsafe-call': 'off',

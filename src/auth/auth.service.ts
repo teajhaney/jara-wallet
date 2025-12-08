@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
+import { WalletService } from '../wallet/wallet.service';
 import type {
   GoogleProfile,
   JwtPayload,
@@ -15,6 +16,7 @@ export class AuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private walletService: WalletService,
   ) {}
 
   async validateGoogleUser(googleProfile: GoogleProfile): Promise<PrismaUser> {
@@ -39,19 +41,8 @@ export class AuthService {
         });
 
         // Ensure wallet exists for existing user
-        const existingWallet = await this.prisma.wallet.findUnique({
-          where: { userId: user.id },
-        });
-
-        if (!existingWallet) {
-          const walletNumber = await this.generateUniqueWalletNumber();
-          await this.prisma.wallet.create({
-            data: {
-              userId: user.id,
-              walletNumber,
-            },
-          });
-        }
+        const userId: string = user.id;
+        await this.walletService.ensureWalletExists(userId);
       } else {
         // Create new user
         user = await this.prisma.user.create({
@@ -62,14 +53,9 @@ export class AuthService {
           },
         });
 
-        // Create wallet for new user with unique wallet number
-        const walletNumber = await this.generateUniqueWalletNumber();
-        await this.prisma.wallet.create({
-          data: {
-            userId: user.id,
-            walletNumber,
-          },
-        });
+        // Auto-create wallet for new user
+        const userId: string = user.id;
+        await this.walletService.createWallet(userId);
       }
     }
 
@@ -91,30 +77,5 @@ export class AuthService {
         name: user.name,
       },
     };
-  }
-
-  private async generateUniqueWalletNumber(): Promise<string> {
-    // Generate a 13-digit wallet number and ensure it's unique
-    let walletNumber: string = '';
-    let isUnique = false;
-
-    while (!isUnique) {
-      // Generate a 13-digit wallet number
-      const randomPart = Math.floor(
-        1000000000000 + Math.random() * 9000000000000,
-      );
-      walletNumber = randomPart.toString();
-
-      // Check if wallet number already exists
-      const existingWallet = await this.prisma.wallet.findUnique({
-        where: { walletNumber },
-      });
-
-      if (!existingWallet) {
-        isUnique = true;
-      }
-    }
-
-    return walletNumber;
   }
 }

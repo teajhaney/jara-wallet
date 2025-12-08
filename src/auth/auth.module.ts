@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -7,10 +7,12 @@ import { AuthController } from './auth.controller';
 import { GoogleOAuthStrategy } from './strategies/google-oauth.strategy';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { PrismaModule } from '../prisma/prisma.module';
+import { WalletModule } from '../wallet/wallet.module';
 
 @Module({
   imports: [
     PrismaModule,
+    forwardRef(() => WalletModule), // Import WalletModule to use WalletService
     PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],

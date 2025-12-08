@@ -5,7 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import type { JwtPayload } from '../types/auth.types';
 
 interface JwtValidateResult {
-  userId: string;
+  id: string;
   email: string;
   name: string | null;
 }
@@ -30,7 +30,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Invalid token payload');
     }
     return {
-      userId: payload.sub,
+      id: payload.sub,
       email: payload.email,
       name: payload.name,
     };
