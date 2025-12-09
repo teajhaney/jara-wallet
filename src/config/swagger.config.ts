@@ -9,7 +9,12 @@ export function setupSwagger(app: INestApplication): void {
     // Determine the app URL based on environment
     let appUrl: string;
 
-    if (configService?.get<string>('appUrl')) {
+    // Check environment variables first (for Vercel)
+    if (process.env.VERCEL_URL) {
+      appUrl = `https://${process.env.VERCEL_URL}`;
+    } else if (process.env.APP_URL) {
+      appUrl = process.env.APP_URL;
+    } else if (configService?.get<string>('appUrl')) {
       appUrl = configService.get<string>('appUrl')!;
     } else {
       // Default to localhost - detect port from config or default to 3000
@@ -59,9 +64,13 @@ export function setupSwagger(app: INestApplication): void {
         tagsSorter: 'alpha',
         operationsSorter: 'alpha',
       },
+      customSiteTitle: 'Jara Wallet API Documentation',
+      customfavIcon: '/favicon.ico',
+      customCss: '.swagger-ui .topbar { display: none }',
     });
 
     console.log('✅ Swagger documentation initialized successfully at /api');
+    console.log(`📚 Swagger UI available at: ${appUrl}/api`);
   } catch (error) {
     console.error('❌ Failed to initialize Swagger:', error);
     if (error instanceof Error) {
