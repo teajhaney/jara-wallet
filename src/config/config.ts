@@ -13,9 +13,10 @@ export default () => ({
 
   // Paystack Configuration
   paystack: {
-    secretKey: process.env.PAYSTACK_SECRET_KEY, // Your Paystack Secret Key (starts with sk_)
-    publicKey: process.env.PAYSTACK_PUBLIC_KEY, // Your Paystack Public Key (starts with pk_)
-    webhookSecret: process.env.PAYSTACK_WEBHOOK_SECRET, // Secret for verifying webhook signatures
+    secretKey: process.env.PAYSTACK_SECRET_KEY, // Your Paystack Secret Key (starts with sk_test_ or sk_live_)
+    publicKey: process.env.PAYSTACK_PUBLIC_KEY, // Your Paystack Public Key (starts with pk_test_ or pk_live_)
+    webhookSecret: process.env.PAYSTACK_WEBHOOK_SECRET,
+    // Note: Webhook signature verification uses the SECRET KEY, not a separate webhook secret
     baseUrl: 'https://api.paystack.co', // Paystack API base URL
   },
 });
