@@ -513,7 +513,7 @@ npm run test:cov
 This project is licensed under the UNLICENSED License.
 
 ## 👤 Author
-
+ Yusuf Tijani 
 Built as part of the HNG Backend Development Program.
 
 ---
