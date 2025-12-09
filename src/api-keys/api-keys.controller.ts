@@ -11,6 +11,12 @@ import type { Request as ExpressRequest } from 'express';
 import { ApiKeysService } from './api-keys.service';
 import { CreateApiKeyDto, RolloverApiKeyDto } from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import {
+  ApiKeysTag,
+  ApiKeysAuth,
+  ApiCreateApiKey,
+  ApiRolloverApiKey,
+} from './api-keys.swagger';
 
 interface AuthenticatedRequest extends ExpressRequest {
   user: {
@@ -20,13 +26,16 @@ interface AuthenticatedRequest extends ExpressRequest {
   };
 }
 
+@ApiKeysTag()
 @Controller('keys')
 @UseGuards(JwtAuthGuard) // All endpoints require JWT authentication
+@ApiKeysAuth()
 export class ApiKeysController {
   constructor(private readonly apiKeysService: ApiKeysService) {}
 
   @Post('create')
   @HttpCode(HttpStatus.CREATED)
+  @ApiCreateApiKey()
   async createApiKey(
     @Request() req: AuthenticatedRequest,
     @Body() createDto: CreateApiKeyDto,
@@ -37,6 +46,7 @@ export class ApiKeysController {
 
   @Post('rollover')
   @HttpCode(HttpStatus.CREATED)
+  @ApiRolloverApiKey()
   async rolloverApiKey(
     @Request() req: AuthenticatedRequest,
     @Body() rolloverDto: RolloverApiKeyDto,

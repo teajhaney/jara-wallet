@@ -1,5 +1,7 @@
 export default () => ({
   port: parseInt(process.env.PORT || '3001', 10),
+  appUrl:
+    process.env.APP_URL || process.env.BASE_URL || 'http://localhost:3000',
   databaseUrl: process.env.DATABASE_URL,
   redisUrl: process.env.REDIS_URL,
   jwtSecret: process.env.JWT_SECRET,

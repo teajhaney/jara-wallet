@@ -1,11 +1,15 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { AppModule } from './app.module';
+import { setupSwagger } from './config/swagger.config';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     rawBody: true, // Enable raw body for webhook signature verification
   });
+
+  const configService = app.get(ConfigService);
 
   // Enable global validation pipe for proper error messages
   app.useGlobalPipes(
@@ -20,7 +24,18 @@ async function bootstrap() {
     }),
   );
 
-  await app.listen(process.env.PORT ?? 3000);
+  // Setup Swagger documentation
+  setupSwagger(app);
+
+  const port = configService.get<number>('port') ?? 3000;
+  await app.listen(port);
+
+  // Log Swagger endpoint
+  const appUrl =
+    configService.get<string>('appUrl') || `http://localhost:${port}`;
+  const swaggerUrl = `${appUrl}/api`;
+
+  console.log(`📚 Swagger documentation available at: ${swaggerUrl}`);
 }
 bootstrap().catch((error) => {
   console.error(error);

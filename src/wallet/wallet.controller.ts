@@ -24,6 +24,16 @@ import { Permissions } from '../api-keys/decorators/permissions.decorator';
 import { DepositDto } from './dto/deposit.dto';
 import { TransferDto } from './dto/transfer.dto';
 import { verifyPaystackWebhook } from './paystack-webhook.util';
+import {
+  ApiWalletTag,
+  ApiGetWallet,
+  ApiInitializeDeposit,
+  ApiExcludeWebhook,
+  ApiGetDepositStatus,
+  ApiGetBalance,
+  ApiTransfer,
+  ApiGetTransactionHistory,
+} from './wallet.swagger';
 
 interface AuthenticatedRequest extends ExpressRequest {
   user: {
@@ -33,6 +43,7 @@ interface AuthenticatedRequest extends ExpressRequest {
   };
 }
 
+@ApiWalletTag()
 @Controller('wallet')
 export class WalletController {
   private readonly secretKey: string | undefined;
@@ -56,6 +67,7 @@ export class WalletController {
   @UseGuards(CombinedAuthGuard, PermissionsGuard)
   @HttpCode(HttpStatus.OK)
   @Permissions('read') // Requires 'read' permission for API keys, JWT users bypass
+  @ApiGetWallet()
   async getWallet(@Request() req: AuthenticatedRequest) {
     const userId: string = req.user.id;
     const wallet = await this.walletService.getWalletByUserId(userId);
@@ -76,6 +88,7 @@ export class WalletController {
   @UseGuards(CombinedAuthGuard, PermissionsGuard)
   @HttpCode(HttpStatus.OK)
   @Permissions('deposit') // Requires 'deposit' permission for API keys, JWT users bypass
+  @ApiInitializeDeposit()
   async initializeDeposit(
     @Request() req: AuthenticatedRequest,
     @Body() depositDto: DepositDto,
@@ -96,6 +109,7 @@ export class WalletController {
 
   @Post('paystack/webhook')
   @HttpCode(HttpStatus.OK)
+  @ApiExcludeWebhook()
   async handlePaystackWebhook(
     @Request() req: RawBodyRequest<ExpressRequest>,
     @Headers('x-paystack-signature') signature: string,
@@ -171,6 +185,7 @@ export class WalletController {
   @UseGuards(CombinedAuthGuard, PermissionsGuard)
   @HttpCode(HttpStatus.OK)
   @Permissions('read') // Requires 'read' permission for API keys, JWT users bypass
+  @ApiGetDepositStatus()
   async getDepositStatus(@Param('reference') reference: string) {
     const status = await this.walletService.getTransactionStatus(reference);
 
@@ -188,6 +203,7 @@ export class WalletController {
   @UseGuards(CombinedAuthGuard, PermissionsGuard)
   @HttpCode(HttpStatus.OK)
   @Permissions('read') // Requires 'read' permission for API keys, JWT users bypass
+  @ApiGetBalance()
   async getBalance(@Request() req: AuthenticatedRequest) {
     const userId: string = req.user.id;
     const balance = await this.walletService.getBalance(userId);
@@ -202,6 +218,7 @@ export class WalletController {
   @UseGuards(CombinedAuthGuard, PermissionsGuard)
   @HttpCode(HttpStatus.OK)
   @Permissions('transfer') // Requires 'transfer' permission for API keys, JWT users bypass
+  @ApiTransfer()
   async transfer(
     @Request() req: AuthenticatedRequest,
     @Body() transferDto: TransferDto,
@@ -220,6 +237,7 @@ export class WalletController {
   @UseGuards(CombinedAuthGuard, PermissionsGuard)
   @HttpCode(HttpStatus.OK)
   @Permissions('read') // Requires 'read' permission for API keys, JWT users bypass
+  @ApiGetTransactionHistory()
   async getTransactionHistory(@Request() req: AuthenticatedRequest) {
     const userId: string = req.user.id;
     const transactions = await this.walletService.getTransactionHistory(userId);
