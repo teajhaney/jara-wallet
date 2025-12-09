@@ -5,7 +5,54 @@ export const ApiAppTag = () => ApiTags('app');
 
 export const ApiGetHello = () =>
   applyDecorators(
-    ApiOperation({ summary: 'Health check endpoint' }),
-    ApiResponse({ status: 200 }),
+    ApiOperation({
+      summary: 'Health check endpoint',
+      description: 'Returns the health status and basic information about the API',
+    }),
+    ApiResponse({
+      status: 200,
+      description: 'API is healthy and running',
+      schema: {
+        type: 'object',
+        properties: {
+          status: {
+            type: 'string',
+            example: 'healthy',
+            description: 'Health status of the API',
+          },
+          service: {
+            type: 'string',
+            example: 'Jara Wallet API',
+            description: 'Name of the service',
+          },
+          version: {
+            type: 'string',
+            example: '1.0.0',
+            description: 'API version',
+          },
+          timestamp: {
+            type: 'string',
+            format: 'date-time',
+            example: '2024-01-01T00:00:00.000Z',
+            description: 'Current server timestamp',
+          },
+          uptime: {
+            type: 'number',
+            example: 1234.56,
+            description: 'Server uptime in seconds',
+          },
+          environment: {
+            type: 'string',
+            example: 'production',
+            description: 'Current environment',
+          },
+          message: {
+            type: 'string',
+            example: 'API is running successfully',
+            description: 'Status message',
+          },
+        },
+      },
+    }),
   );
 
