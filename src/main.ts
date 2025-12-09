@@ -11,12 +11,6 @@ async function bootstrap() {
 
   const configService = app.get(ConfigService);
 
-  // Enable CORS for Swagger UI and API access
-  app.enableCors({
-    origin: true, // Allow all origins (you can restrict this in production)
-    credentials: true,
-  });
-
   // Enable global validation pipe for proper error messages
   app.useGlobalPipes(
     new ValidationPipe({

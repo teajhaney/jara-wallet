@@ -63,10 +63,14 @@ export function setupSwagger(app: INestApplication): void {
         persistAuthorization: true,
         tagsSorter: 'alpha',
         operationsSorter: 'alpha',
+        docExpansion: 'none',
+        filter: true,
+        showRequestDuration: true,
       },
       customSiteTitle: 'Jara Wallet API Documentation',
       customfavIcon: '/favicon.ico',
       customCss: '.swagger-ui .topbar { display: none }',
+      customJs: [],
     });
 
     console.log('✅ Swagger documentation initialized successfully at /api');
