@@ -126,9 +126,21 @@ export class WalletController {
     });
 
     // Handle webhook event
-    await this.walletService.handlePaystackWebhook(event);
+    // Always return 200 OK to prevent Paystack retries
+    // Errors are logged internally, not thrown
+    try {
+      await this.walletService.handlePaystackWebhook(event);
+    } catch (error) {
+      // Log error but still return 200 OK
+      // This prevents Paystack from retrying the webhook indefinitely
+      console.error('Error processing webhook (returning 200 OK):', {
+        error: error instanceof Error ? error.message : String(error),
+        reference: event.data?.reference,
+      });
+    }
 
-    // Return success response
+    // Always return success response to Paystack
+    // This marks the webhook as successfully delivered
     return { status: true };
   }
 

@@ -258,6 +258,7 @@ export class WalletService {
   /**
    * Handle Paystack webhook event
    * Updates transaction status and credits wallet if successful
+   * Always returns successfully to prevent Paystack retries
    */
   async handlePaystackWebhook(event: {
     event: string;
@@ -269,6 +270,7 @@ export class WalletService {
   }): Promise<void> {
     // Only process charge.success events
     if (event.event !== 'charge.success') {
+      console.log('Skipping webhook event:', event.event);
       return;
     }
 
@@ -280,8 +282,15 @@ export class WalletService {
       include: { wallet: true },
     });
 
+    // If transaction not found, log and return gracefully
+    // This prevents Paystack from retrying the webhook
     if (!transaction) {
-      throw new NotFoundException('Transaction not found');
+      console.warn('Webhook received for unknown transaction:', {
+        reference,
+        status,
+        event: event.event,
+      });
+      return; // Return gracefully instead of throwing
     }
 
     // Check idempotency - avoid double-credit
