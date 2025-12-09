@@ -9,10 +9,11 @@ export function setupSwagger(app: INestApplication): void {
     // Determine the app URL based on environment
     let appUrl: string;
 
-    // Check environment variables first (for Vercel)
+    // Check Vercel environment variables first (auto-provided by Vercel)
     if (process.env.VERCEL_URL) {
       appUrl = `https://${process.env.VERCEL_URL}`;
     } else if (process.env.APP_URL) {
+      // Check APP_URL directly from env (in case config not loaded yet)
       appUrl = process.env.APP_URL;
     } else if (configService?.get<string>('appUrl')) {
       appUrl = configService.get<string>('appUrl')!;
@@ -20,6 +21,11 @@ export function setupSwagger(app: INestApplication): void {
       // Default to localhost - detect port from config or default to 3000
       const port = configService?.get<number>('port') || 3000;
       appUrl = `http://localhost:${port}`;
+    }
+
+    // Ensure URL has proper protocol
+    if (!appUrl.startsWith('http://') && !appUrl.startsWith('https://')) {
+      appUrl = `https://${appUrl}`;
     }
 
     console.log(`🔧 Setting up Swagger with appUrl: ${appUrl}`);

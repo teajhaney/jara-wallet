@@ -9,6 +9,12 @@ async function bootstrap() {
     rawBody: true, // Enable raw body for webhook signature verification
   });
 
+  // Enable CORS for Swagger UI and API access
+  app.enableCors({
+    origin: true, // Allow all origins (adjust for production if needed)
+    credentials: true,
+  });
+
   const configService = app.get(ConfigService);
 
   // Enable global validation pipe for proper error messages
