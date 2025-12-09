@@ -24,10 +24,7 @@ export class AppService {
       service: 'Jara Wallet API',
       version: '1.0.0',
       timestamp: new Date().toISOString(),
-      uptime: {
-        seconds: Math.floor(uptimeSeconds),
-        formatted: this.formatUptime(uptimeSeconds),
-      },
+      uptime: this.formatUptime(uptimeSeconds),
       environment: process.env.NODE_ENV || 'development',
       message: 'API is running successfully',
     };
