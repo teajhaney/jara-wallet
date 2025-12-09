@@ -51,7 +51,7 @@ export function setupSwagger(app: INestApplication): void {
         },
         'API-Key', // This name here is important for matching up with @ApiKeyAuth() in your controller!
       )
-      .addTag('auth', 'Authentication endpoints')
+      //   .addTag('auth', 'Authentication endpoints')
       .addTag('wallet', 'Wallet management endpoints')
       .addTag('keys', 'API key management endpoints')
       .addTag('app', 'Application health check')
