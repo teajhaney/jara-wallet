@@ -59,12 +59,12 @@ export function setupSwagger(app: INestApplication): void {
     // Determine the app URL based on environment
     let appUrl: string;
 
-    // Check Vercel environment variables first (auto-provided by Vercel)
-    if (process.env.VERCEL_URL) {
-      appUrl = `https://${process.env.VERCEL_URL}`;
-    } else if (process.env.APP_URL) {
-      // Check APP_URL directly from env (in case config not loaded yet)
+    // Priority: APP_URL (production) > VERCEL_URL (preview) > config > localhost
+    // This ensures production domain is used when set
+    if (process.env.APP_URL) {
       appUrl = process.env.APP_URL;
+    } else if (process.env.VERCEL_URL) {
+      appUrl = `https://${process.env.VERCEL_URL}`;
     } else if (configService?.get<string>('appUrl')) {
       appUrl = configService.get<string>('appUrl')!;
     } else {

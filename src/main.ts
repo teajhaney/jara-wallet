@@ -11,8 +11,18 @@ async function bootstrap() {
 
   // Enable CORS for Swagger UI and API access
   app.enableCors({
-    origin: true, // Allow all origins (adjust for production if needed)
+    origin: true, // Allow all origins
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-API-Key',
+      'X-Requested-With',
+      'Accept',
+      'Origin',
+    ],
+    exposedHeaders: ['Content-Length', 'Content-Type'],
   });
 
   const configService = app.get(ConfigService);
