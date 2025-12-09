@@ -27,4 +27,3 @@ export const ApiRolloverApiKey = () =>
     ApiResponse({ status: 401 }),
     ApiResponse({ status: 404 }),
   );
-

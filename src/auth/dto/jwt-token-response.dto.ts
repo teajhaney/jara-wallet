@@ -32,4 +32,3 @@ export class JwtTokenResponseDto {
   })
   message?: string;
 }
-

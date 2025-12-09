@@ -38,21 +38,10 @@ export const ApiGetHello = () =>
             description: 'Current server timestamp',
           },
           uptime: {
-            type: 'object',
-            properties: {
-              seconds: {
-                type: 'number',
-                example: 1234,
-                description: 'Server uptime in seconds',
-              },
-              formatted: {
-                type: 'string',
-                example: '20m 34s',
-                description:
-                  'Human-readable uptime format (e.g., "2d 3h 20m 34s")',
-              },
-            },
-            description: 'Server uptime information',
+            type: 'string',
+            example: '20m 34s',
+            description:
+              'Human-readable server uptime format (e.g., "2d 3h 20m 34s", "1h 15m", "45s")',
           },
           environment: {
             type: 'string',

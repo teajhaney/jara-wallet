@@ -374,10 +374,7 @@ curl -X GET http://localhost:3000/
   "service": "Jara Wallet API",
   "version": "1.0.0",
   "timestamp": "2024-01-01T00:00:00.000Z",
-  "uptime": {
-    "seconds": 1234,
-    "formatted": "20m 34s"
-  },
+  "uptime": "20m 34s",
   "environment": "development",
   "message": "API is running successfully"
 }
@@ -513,7 +510,8 @@ npm run test:cov
 This project is licensed under the UNLICENSED License.
 
 ## 👤 Author
- Yusuf Tijani 
+
+Yusuf Tijani
 Built as part of the HNG Backend Development Program.
 
 ---

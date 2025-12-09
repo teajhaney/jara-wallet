@@ -79,4 +79,3 @@ export const ApiGetTransactionHistory = () =>
     ApiResponse({ status: 200, type: [TransactionHistoryItemDto] }),
     ApiResponse({ status: 401 }),
   );
-

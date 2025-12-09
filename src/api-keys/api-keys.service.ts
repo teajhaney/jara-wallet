@@ -218,7 +218,7 @@ export class ApiKeysService {
 
     // Check each key hash
     for (const keyRecord of allKeys) {
-      const isValid = await bcrypt.compare(apiKey, keyRecord.keyHash as string);
+      const isValid = await bcrypt.compare(apiKey, keyRecord.keyHash);
       if (isValid) {
         return {
           userId: keyRecord.userId,
