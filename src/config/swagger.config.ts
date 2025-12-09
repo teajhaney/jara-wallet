@@ -2,6 +2,55 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import type { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
+// Custom Swagger HTML that loads assets from CDN (required for Vercel serverless)
+function getSwaggerHtml(jsonUrl: string): string {
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jara Wallet API Documentation</title>
+  <link rel="icon" type="image/png" href="https://swagger.io/favicon-32x32.png">
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui.css">
+  <style>
+    html { box-sizing: border-box; overflow-y: scroll; }
+    *, *:before, *:after { box-sizing: inherit; }
+    body { margin: 0; background: #fafafa; }
+    .swagger-ui .topbar { display: none; }
+  </style>
+</head>
+<body>
+  <div id="swagger-ui"></div>
+  <script src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-bundle.js"></script>
+  <script src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-standalone-preset.js"></script>
+  <script>
+    window.onload = function() {
+      window.ui = SwaggerUIBundle({
+        url: "${jsonUrl}",
+        dom_id: '#swagger-ui',
+        deepLinking: true,
+        persistAuthorization: true,
+        presets: [
+          SwaggerUIBundle.presets.apis,
+          SwaggerUIStandalonePreset
+        ],
+        plugins: [
+          SwaggerUIBundle.plugins.DownloadUrl
+        ],
+        layout: "StandaloneLayout",
+        tagsSorter: "alpha",
+        operationsSorter: "alpha",
+        docExpansion: "none",
+        filter: true,
+        showRequestDuration: true
+      });
+    };
+  </script>
+</body>
+</html>`;
+}
+
 export function setupSwagger(app: INestApplication): void {
   try {
     const configService = app.get(ConfigService, { strict: false });
@@ -46,7 +95,7 @@ export function setupSwagger(app: INestApplication): void {
           description: 'Enter JWT token',
           in: 'header',
         },
-        'JWT-auth', // This name here is important for matching up with @ApiBearerAuth() in your controller!
+        'JWT-auth',
       )
       .addApiKey(
         {
@@ -55,32 +104,41 @@ export function setupSwagger(app: INestApplication): void {
           name: 'X-API-Key',
           description: 'Enter API Key',
         },
-        'API-Key', // This name here is important for matching up with @ApiKeyAuth() in your controller!
+        'API-Key',
       )
-      //   .addTag('auth', 'Authentication endpoints')
       .addTag('wallet', 'Wallet management endpoints')
       .addTag('keys', 'API key management endpoints')
       .addTag('app', 'Application health check')
       .build();
 
     const document = SwaggerModule.createDocument(app, config);
-    SwaggerModule.setup('api', app, document, {
-      swaggerOptions: {
-        persistAuthorization: true,
-        tagsSorter: 'alpha',
-        operationsSorter: 'alpha',
-        docExpansion: 'none',
-        filter: true,
-        showRequestDuration: true,
+
+    // Get the underlying HTTP adapter to serve custom routes
+    const httpAdapter = app.getHttpAdapter();
+
+    // Serve the OpenAPI JSON spec
+    httpAdapter.get(
+      '/api-json',
+      (req: unknown, res: { json: (doc: object) => void }) => {
+        res.json(document);
       },
-      customSiteTitle: 'Jara Wallet API Documentation',
-      customfavIcon: '/favicon.ico',
-      customCss: '.swagger-ui .topbar { display: none }',
-      customJs: [],
-    });
+    );
+
+    // Serve custom Swagger UI HTML that loads from CDN
+    httpAdapter.get(
+      '/api',
+      (
+        req: unknown,
+        res: { type: (t: string) => { send: (html: string) => void } },
+      ) => {
+        const jsonUrl = `${appUrl}/api-json`;
+        res.type('text/html').send(getSwaggerHtml(jsonUrl));
+      },
+    );
 
     console.log('✅ Swagger documentation initialized successfully at /api');
     console.log(`📚 Swagger UI available at: ${appUrl}/api`);
+    console.log(`📄 OpenAPI JSON available at: ${appUrl}/api-json`);
   } catch (error) {
     console.error('❌ Failed to initialize Swagger:', error);
     if (error instanceof Error) {
