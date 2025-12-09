@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaystackService } from './paystack.service';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class WalletService {
@@ -13,9 +14,8 @@ export class WalletService {
     private paystackService: PaystackService,
   ) {}
 
-  /**
-   * Generate a unique 13-digit wallet number
-   */
+  // Generate a unique 13-digit wallet number
+
   private async generateUniqueWalletNumber(): Promise<string> {
     let walletNumber: string = '';
     let isUnique = false;
@@ -45,10 +45,9 @@ export class WalletService {
     return walletNumber;
   }
 
-  /**
-   * Create a wallet for a user
-   * Auto-called when user is created
-   */
+  //Create a wallet for a user
+  //Auto-called when user is created to ensure a wallet is created for the user
+
   async createWallet(userId: string): Promise<{
     id: string;
     userId: string;
@@ -86,9 +85,7 @@ export class WalletService {
     };
   }
 
-  /**
-   * Get wallet by user ID
-   */
+  //Get wallet by user ID
   async getWalletByUserId(userId: string): Promise<{
     id: string;
     userId: string;
@@ -132,9 +129,7 @@ export class WalletService {
     return result;
   }
 
-  /**
-   * Get wallet by wallet number (for transfers)
-   */
+  //Get wallet by wallet number (for transfers)
   async getWalletByWalletNumber(walletNumber: string): Promise<{
     id: string;
     userId: string;
@@ -170,10 +165,8 @@ export class WalletService {
     return result;
   }
 
-  /**
-   * Ensure wallet exists for a user (idempotent)
-   * Used when user is created to auto-create wallet
-   */
+  //Ensure wallet exists for a user (idempotent)
+  //Used when user is created to auto-create wallet
   async ensureWalletExists(userId: string): Promise<void> {
     const existingWallet = await this.prisma.wallet.findUnique({
       where: { userId },
@@ -184,10 +177,8 @@ export class WalletService {
     }
   }
 
-  /**
-   * Initialize a deposit transaction via Paystack
-   * Creates a PENDING transaction and returns Paystack authorization URL
-   */
+  //Initialize a deposit transaction via Paystack
+  //Creates a PENDING transaction and returns Paystack authorization URL
   async initializeDeposit(
     userId: string,
     amount: number,
@@ -245,7 +236,7 @@ export class WalletService {
         metadata: {
           paystackAccessCode: paystackResponse.access_code,
           paystackReference: paystackResponse.reference,
-        },
+        } as Prisma.InputJsonValue,
       },
     });
 
@@ -255,61 +246,66 @@ export class WalletService {
     };
   }
 
-  /**
-   * Handle Paystack webhook event
-   * Updates transaction status and credits wallet if successful
-   * Always returns successfully to prevent Paystack retries
-   */
-  async handlePaystackWebhook(event: {
-    event: string;
-    data: {
-      reference: string;
-      status: string;
-      amount: number;
+  // Update transaction status from webhook
+  // This method is called when Paystack sends a webhook notification.
+  // It updates the transaction status in our database.
+
+  async updateTransactionFromWebhook(
+    reference: string,
+    status: 'pending' | 'success' | 'failed',
+    metadata?: Record<string, unknown>,
+  ) {
+    // Map lowercase status to TransactionStatus enum (uppercase)
+    const statusMap: Record<
+      'pending' | 'success' | 'failed',
+      'PENDING' | 'SUCCESS' | 'FAILED'
+    > = {
+      pending: 'PENDING',
+      success: 'SUCCESS',
+      failed: 'FAILED',
     };
-  }): Promise<void> {
-    // Only process charge.success events
-    if (event.event !== 'charge.success') {
-      console.log('Skipping webhook event:', event.event);
-      return;
-    }
 
-    const { reference, status } = event.data;
+    const transactionStatus: 'PENDING' | 'SUCCESS' | 'FAILED' =
+      statusMap[status];
 
-    // Find transaction by reference
+    // Find transaction first to check type and current status
     const transaction = await this.prisma.transaction.findUnique({
       where: { reference },
       include: { wallet: true },
     });
 
-    // If transaction not found, log and return gracefully
-    // This prevents Paystack from retrying the webhook
     if (!transaction) {
-      console.warn('Webhook received for unknown transaction:', {
-        reference,
-        status,
-        event: event.event,
-      });
-      return; // Return gracefully instead of throwing
+      console.warn('Transaction not found for reference:', reference);
+      return;
     }
 
     // Check idempotency - avoid double-credit
     if (transaction.status === 'SUCCESS') {
-      // Transaction already processed, skip
+      console.log('Transaction already processed, skipping:', reference);
       return;
     }
 
-    // Update transaction status based on Paystack status
-    if (status === 'success') {
-      // Use transaction to ensure atomic operation
-      await this.prisma.$transaction(async (tx) => {
-        // Update transaction to SUCCESS
-        await tx.transaction.update({
-          where: { id: transaction.id },
-          data: { status: 'SUCCESS' },
-        });
+    // Use database transaction to ensure atomicity
+    await this.prisma.$transaction(async (tx) => {
+      // Merge existing metadata with new metadata (preserve existing if no new metadata provided)
+      const existingMetadata =
+        (transaction.metadata as Record<string, unknown>) || {};
+      const mergedMetadata = metadata
+        ? { ...existingMetadata, ...metadata }
+        : existingMetadata;
 
-        // Credit wallet balance atomically
+      // Update transaction status
+      await tx.transaction.update({
+        where: { reference },
+        data: {
+          status: transactionStatus,
+          metadata: mergedMetadata as Prisma.InputJsonValue,
+          updatedAt: new Date(),
+        },
+      });
+
+      // If deposit is successful, credit wallet balance atomically
+      if (transaction.type === 'DEPOSIT' && transactionStatus === 'SUCCESS') {
         await tx.wallet.update({
           where: { id: transaction.walletId },
           data: {
@@ -318,19 +314,11 @@ export class WalletService {
             },
           },
         });
-      });
-    } else {
-      // Update transaction to FAILED
-      await this.prisma.transaction.update({
-        where: { id: transaction.id },
-        data: { status: 'FAILED' },
-      });
-    }
+      }
+    });
   }
 
-  /**
-   * Get transaction status by reference (read-only)
-   */
+  //Get transaction status by reference (read-only)
   async getTransactionStatus(reference: string): Promise<{
     reference: string;
     status: string;
@@ -362,9 +350,7 @@ export class WalletService {
     };
   }
 
-  /**
-   * Get wallet balance for a user
-   */
+  //Get wallet balance for a user
   async getBalance(userId: string): Promise<{
     balance: string;
     balanceInNaira: number;
@@ -377,15 +363,14 @@ export class WalletService {
     };
   }
 
-  /**
-   * Transfer funds from one wallet to another
-   * Uses database transaction to ensure atomicity
-   */
+  //Transfer funds from one wallet to another
+  //Uses database transaction to ensure atomicity
   async transfer(
     senderUserId: string,
     recipientWalletNumber: string,
     amount: number,
   ): Promise<{
+    status: string;
     message: string;
     senderTransactionId: string;
     recipientTransactionId: string;
@@ -478,15 +463,14 @@ export class WalletService {
     });
 
     return {
-      message: `Successfully transferred ₦${amount / 100} to wallet ${recipientWalletNumber}`,
+      status: 'success',
+      message: 'Transfer completed',
       senderTransactionId: result.senderTransactionId,
       recipientTransactionId: result.recipientTransactionId,
     };
   }
 
-  /**
-   * Get transaction history for a user's wallet
-   */
+  //Get transaction history for a user's wallet
   async getTransactionHistory(userId: string): Promise<
     Array<{
       id: string;

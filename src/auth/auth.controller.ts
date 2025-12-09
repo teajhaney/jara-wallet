@@ -8,11 +8,11 @@ import {
 import type { Request } from 'express';
 import { AuthService } from './auth.service';
 import { GoogleAuthGuard } from './guards/google-auth.guard';
-import type { GoogleProfile, JwtTokenResponse } from './types/auth.types';
-
-interface AuthenticatedRequest extends Request {
-  user?: GoogleProfile;
-}
+import type {
+  AuthenticatedRequest,
+  GoogleProfile,
+  JwtTokenResponse,
+} from './types/auth.types';
 
 @Controller('auth')
 export class AuthController {

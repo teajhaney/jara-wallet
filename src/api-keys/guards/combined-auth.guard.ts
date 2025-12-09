@@ -21,10 +21,8 @@ interface CombinedAuthRequest extends Request {
   };
 }
 
-/**
- * Combined authentication guard that supports both JWT and API Key authentication
- * Checks for x-api-key header first, then falls back to JWT
- */
+//Combined authentication guard that supports both JWT and API Key authentication
+//Checks for x-api-key header first, then falls back to JWT
 @Injectable()
 export class CombinedAuthGuard extends AuthGuard('jwt') implements CanActivate {
   constructor(private apiKeysService: ApiKeysService) {

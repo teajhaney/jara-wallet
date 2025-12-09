@@ -15,9 +15,7 @@ export class PaystackService {
     this.paystack = Paystack(secretKey);
   }
 
-  /**
-   * Generate a unique transaction reference
-   */
+  //Generate a unique transaction reference
   generateReference(): string {
     // Generate unique reference: prefix + timestamp + random string
     const prefix = 'JARA';
@@ -29,13 +27,11 @@ export class PaystackService {
     return `${prefix}_${timestamp}_${randomPart}`;
   }
 
-  /**
-   * Initialize a Paystack transaction
-   * @param amount - Amount in kobo (e.g., 50000 = ₦500)
-   * @param email - Customer email
-   * @param reference - Unique transaction reference
-   * @param metadata - Optional metadata to attach to transaction
-   */
+  //Initialize a Paystack transaction
+  //amount - Amount in kobo (e.g., 50000 = ₦500)
+  //email - Customer email
+  //reference - Unique transaction reference
+  //metadata - Optional metadata to attach to transaction
   async initializeTransaction(
     amount: number,
     email: string,
@@ -72,10 +68,8 @@ export class PaystackService {
     }
   }
 
-  /**
-   * Verify a Paystack transaction
-   * @param reference - Transaction reference to verify
-   */
+  //Verify a Paystack transaction
+  //reference - Transaction reference to verify
   async verifyTransaction(reference: string): Promise<{
     status: string;
     amount: number;
@@ -108,12 +102,10 @@ export class PaystackService {
     }
   }
 
-  /**
-   * Verify Paystack webhook signature
-   * According to Paystack docs: Use your SECRET KEY (not a separate webhook secret)
-   * @param payload - Raw request body as string (must be JSON.stringify of the body)
-   * @param signature - Signature from x-paystack-signature header
-   */
+  //Verify Paystack webhook signature
+  //According to Paystack docs: Use your SECRET KEY (not a separate webhook secret)
+  //payload - Raw request body as string (must be JSON.stringify of the body)
+  //signature - Signature from x-paystack-signature header
   verifyWebhookSignature(payload: string, signature: string): boolean {
     const secretKey = this.configService.get<string>('paystack.secretKey');
     if (!secretKey) {

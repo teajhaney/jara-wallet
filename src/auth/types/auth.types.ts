@@ -7,7 +7,9 @@ export interface GoogleProfile {
   name: string;
   accessToken: string;
 }
-
+export interface AuthenticatedRequest extends Request {
+  user?: GoogleProfile;
+}
 export interface JwtPayload {
   sub: string;
   email: string;

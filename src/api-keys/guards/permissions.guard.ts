@@ -6,7 +6,14 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PERMISSIONS_KEY } from '../decorators/permissions.decorator';
-import { Request } from 'express';
+import type { Request } from 'express';
+
+interface PermissionsGuardRequest extends Request {
+  apiKey?: {
+    id: string;
+    permissions: string[];
+  };
+}
 
 @Injectable()
 export class PermissionsGuard implements CanActivate {
@@ -23,8 +30,10 @@ export class PermissionsGuard implements CanActivate {
       return true;
     }
 
-    const request = context.switchToHttp().getRequest<Request>();
-    const apiKey = (request as any).apiKey;
+    const request = context
+      .switchToHttp()
+      .getRequest<PermissionsGuardRequest>();
+    const apiKey = request.apiKey;
 
     // If request is authenticated via JWT (not API key), allow all actions
     if (!apiKey) {
@@ -32,7 +41,7 @@ export class PermissionsGuard implements CanActivate {
     }
 
     // For API key requests, check permissions
-    const userPermissions = apiKey.permissions || [];
+    const userPermissions: string[] = apiKey.permissions || [];
 
     // Check if user has at least one of the required permissions
     const hasPermission = requiredPermissions.some((permission) =>

@@ -10,7 +10,10 @@ import {
   HttpCode,
   HttpStatus,
   UnauthorizedException,
+  BadRequestException,
+  InternalServerErrorException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { RawBodyRequest } from '@nestjs/common';
 import type { Request as ExpressRequest } from 'express';
 import { WalletService } from './wallet.service';
@@ -20,6 +23,7 @@ import { PermissionsGuard } from '../api-keys/guards/permissions.guard';
 import { Permissions } from '../api-keys/decorators/permissions.decorator';
 import { DepositDto } from './dto/deposit.dto';
 import { TransferDto } from './dto/transfer.dto';
+import { verifyPaystackWebhook } from './paystack-webhook.util';
 
 interface AuthenticatedRequest extends ExpressRequest {
   user: {
@@ -31,10 +35,22 @@ interface AuthenticatedRequest extends ExpressRequest {
 
 @Controller('wallet')
 export class WalletController {
+  private readonly secretKey: string | undefined;
+
   constructor(
     private readonly walletService: WalletService,
     private readonly paystackService: PaystackService,
-  ) {}
+    private readonly configService: ConfigService,
+  ) {
+    // Load webhook secret from configuration
+    this.secretKey = this.configService.get<string>('paystack.secretKey');
+
+    if (!this.secretKey) {
+      console.warn(
+        'Paystack secret is not configured. Webhook verification will fail.',
+      );
+    }
+  }
 
   @Get()
   @UseGuards(CombinedAuthGuard, PermissionsGuard)
@@ -83,65 +99,72 @@ export class WalletController {
   async handlePaystackWebhook(
     @Request() req: RawBodyRequest<ExpressRequest>,
     @Headers('x-paystack-signature') signature: string,
-    @Body() body: any,
   ) {
-    // Get raw body as string for signature verification
-    // Paystack requires the exact JSON stringified body for signature verification
-    const rawBodyString: string =
-      req.rawBody?.toString('utf8') || JSON.stringify(body || req.body);
+    const payload = JSON.stringify(req.body);
 
-    // Verify webhook signature using PAYSTACK_SECRET_KEY (as per Paystack docs)
-    if (!signature) {
-      throw new UnauthorizedException('Missing Paystack signature');
+    if (this.secretKey && signature) {
+      const isValid = verifyPaystackWebhook(payload, signature, this.secretKey);
+
+      if (!isValid) {
+        throw new UnauthorizedException('Invalid webhook signature');
+      }
+    } else if (this.secretKey && !signature) {
+      // Secret is configured but no signature provided - this is suspicious
+      throw new BadRequestException('Missing Paystack signature header');
+    } else {
+      // No secret configured - this is OK for test mode
+      console.warn(
+        '⚠️  Webhook secret not configured - skipping signature verification (OK for test mode)',
+      );
     }
 
-    const isValid = this.paystackService.verifyWebhookSignature(
-      rawBodyString,
-      signature,
-    );
-
-    if (!isValid) {
-      console.error('Webhook signature verification failed', {
-        receivedSignature: signature.substring(0, 20) + '...',
-        payloadLength: rawBodyString.length,
-        payloadPreview: rawBodyString.substring(0, 100),
-      });
-      throw new UnauthorizedException('Invalid Paystack signature');
-    }
-
-    // Parse webhook payload
-    const event = (body || req.body) as {
-      event: string;
-      data: {
-        reference: string;
-        status: string;
-        amount: number;
-      };
-    };
-
-    console.log('Received Paystack webhook:', {
-      event: event.event,
-      reference: event.data?.reference,
-      status: event.data?.status,
-    });
-
-    // Handle webhook event
-    // Always return 200 OK to prevent Paystack retries
-    // Errors are logged internally, not thrown
     try {
-      await this.walletService.handlePaystackWebhook(event);
-    } catch (error) {
-      // Log error but still return 200 OK
-      // This prevents Paystack from retrying the webhook indefinitely
-      console.error('Error processing webhook (returning 200 OK):', {
-        error: error instanceof Error ? error.message : String(error),
-        reference: event.data?.reference,
-      });
-    }
+      // Parse webhook event
+      const event = req.body as {
+        event: string;
+        data: {
+          reference: string;
+          status: string;
+          amount: number;
+        };
+      };
 
-    // Always return success response to Paystack
-    // This marks the webhook as successfully delivered
-    return { status: true };
+      console.log('Received Paystack webhook event:', event.event);
+
+      // Paystack sends different event types
+      if (event.event === 'charge.success' || event.event === 'charge.failed') {
+        const transactionData = event.data;
+
+        // Map Paystack status to our status format
+        let status: 'pending' | 'success' | 'failed' = 'pending';
+        if (event.event === 'charge.success') {
+          status = 'success';
+        } else if (event.event === 'charge.failed') {
+          status = 'failed';
+        }
+
+        console.log(
+          `Updating transaction ${transactionData.reference} to status: ${status}`,
+        );
+
+        // Update transaction in database
+        await this.walletService.updateTransactionFromWebhook(
+          transactionData.reference,
+          status,
+        );
+
+        console.log(
+          `Successfully updated transaction ${transactionData.reference}`,
+        );
+      } else {
+        console.log(`Unhandled webhook event type: ${event.event}`);
+      }
+
+      return { status: true };
+    } catch (error) {
+      console.error('Error processing webhook:', error);
+      throw new InternalServerErrorException('Failed to process webhook');
+    }
   }
 
   @Get('deposit/:reference/status')

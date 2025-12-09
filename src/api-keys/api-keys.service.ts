@@ -231,7 +231,7 @@ export class ApiKeysService {
     throw new UnauthorizedException('Invalid or expired API key');
   }
 
-  // Revoke an API key4
+  //Revoke an API key
 
   async revokeApiKey(userId: string, apiKeyId: string): Promise<void> {
     const apiKey = await this.prisma.apiKey.findFirst({
