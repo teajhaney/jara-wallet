@@ -3,7 +3,8 @@ import type { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 // Custom Swagger HTML that loads assets from CDN (required for Vercel serverless)
-function getSwaggerHtml(jsonUrl: string): string {
+// Uses relative URL for JSON to avoid CORS issues between preview/production domains
+function getSwaggerHtml(): string {
   return `
 <!DOCTYPE html>
 <html lang="en">
@@ -27,7 +28,7 @@ function getSwaggerHtml(jsonUrl: string): string {
   <script>
     window.onload = function() {
       window.ui = SwaggerUIBundle({
-        url: "${jsonUrl}",
+        url: "./api-json",
         dom_id: '#swagger-ui',
         deepLinking: true,
         persistAuthorization: true,
@@ -125,14 +126,14 @@ export function setupSwagger(app: INestApplication): void {
     );
 
     // Serve custom Swagger UI HTML that loads from CDN
+    // Uses relative URL (./api-json) to avoid CORS issues
     httpAdapter.get(
       '/api',
       (
         req: unknown,
         res: { type: (t: string) => { send: (html: string) => void } },
       ) => {
-        const jsonUrl = `${appUrl}/api-json`;
-        res.type('text/html').send(getSwaggerHtml(jsonUrl));
+        res.type('text/html').send(getSwaggerHtml());
       },
     );
 
