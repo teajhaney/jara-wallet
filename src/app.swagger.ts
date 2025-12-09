@@ -7,7 +7,8 @@ export const ApiGetHello = () =>
   applyDecorators(
     ApiOperation({
       summary: 'Health check endpoint',
-      description: 'Returns the health status and basic information about the API',
+      description:
+        'Returns the health status and basic information about the API',
     }),
     ApiResponse({
       status: 200,
@@ -47,7 +48,8 @@ export const ApiGetHello = () =>
               formatted: {
                 type: 'string',
                 example: '20m 34s',
-                description: 'Human-readable uptime format (e.g., "2d 3h 20m 34s")',
+                description:
+                  'Human-readable uptime format (e.g., "2d 3h 20m 34s")',
               },
             },
             description: 'Server uptime information',
@@ -66,4 +68,3 @@ export const ApiGetHello = () =>
       },
     }),
   );
-
