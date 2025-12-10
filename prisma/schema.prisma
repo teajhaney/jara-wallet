@@ -78,7 +78,7 @@ model ApiKey {
   id          String   @id @default(cuid())
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  keyHash     String   @unique  // Hashed key for secure verification
+  key         String   @unique  // Plain API key for verification and retrieval
   keyPrefix   String   // Display prefix like "sk_live_xxxxx" for API responses
   name        String
   permissions String[]  // e.g., ["read", "deposit", "transfer"]

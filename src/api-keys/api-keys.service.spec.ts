@@ -7,9 +7,6 @@ import {
 import { ApiKeysService } from './api-keys.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateApiKeyDto, RolloverApiKeyDto } from './dto';
-import * as bcrypt from 'bcrypt';
-
-jest.mock('bcrypt');
 
 describe('ApiKeysService', () => {
   let service: ApiKeysService;
@@ -19,6 +16,7 @@ describe('ApiKeysService', () => {
       count: jest.fn(),
       create: jest.fn(),
       findFirst: jest.fn(),
+      findUnique: jest.fn(),
       update: jest.fn(),
       findMany: jest.fn(),
     },
@@ -176,15 +174,13 @@ describe('ApiKeysService', () => {
     };
 
     it('should validate API key successfully', async () => {
-      const mockApiKeyWithHash = {
+      const mockApiKeyWithKey = {
         ...mockApiKey,
-        keyHash:
-          '$2b$10$hashedkey1234567890123456789012345678901234567890123456789012',
+        key: 'sk_live_test123',
+        revoked: false,
+        expiresAt: new Date(Date.now() + 86400000), // Not expired
       };
-      mockPrismaService.apiKey.findMany.mockResolvedValue([mockApiKeyWithHash]);
-
-      // Mock bcrypt.compare to return true for valid key
-      (bcrypt.compare as jest.Mock).mockResolvedValueOnce(true);
+      mockPrismaService.apiKey.findUnique.mockResolvedValue(mockApiKeyWithKey);
 
       const result = await service.validateApiKey('sk_live_test123');
 
@@ -193,25 +189,48 @@ describe('ApiKeysService', () => {
         apiKeyId: mockApiKey.id,
         permissions: mockApiKey.permissions,
       });
-      expect(mockPrismaService.apiKey.findMany).toHaveBeenCalled();
-      expect(bcrypt.compare).toHaveBeenCalled();
+      expect(mockPrismaService.apiKey.findUnique).toHaveBeenCalledWith({
+        where: { key: 'sk_live_test123' },
+      });
     });
 
     it('should throw UnauthorizedException for invalid API key', async () => {
-      const mockApiKeyWithHash = {
-        ...mockApiKey,
-        keyHash:
-          '$2b$10$hashedkey1234567890123456789012345678901234567890123456789012',
-      };
-      mockPrismaService.apiKey.findMany.mockResolvedValue([mockApiKeyWithHash]);
-
-      // Mock bcrypt.compare to return false for invalid key
-      (bcrypt.compare as jest.Mock).mockResolvedValue(false);
+      mockPrismaService.apiKey.findUnique.mockResolvedValue(null);
 
       await expect(service.validateApiKey('sk_live_invalid')).rejects.toThrow(
         UnauthorizedException,
       );
-      expect(mockPrismaService.apiKey.findMany).toHaveBeenCalled();
+      expect(mockPrismaService.apiKey.findUnique).toHaveBeenCalledWith({
+        where: { key: 'sk_live_invalid' },
+      });
+    });
+
+    it('should throw UnauthorizedException for revoked API key', async () => {
+      const revokedKey = {
+        ...mockApiKey,
+        key: 'sk_live_revoked123',
+        revoked: true,
+        expiresAt: new Date(Date.now() + 86400000),
+      };
+      mockPrismaService.apiKey.findUnique.mockResolvedValue(revokedKey);
+
+      await expect(
+        service.validateApiKey('sk_live_revoked123'),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('should throw UnauthorizedException for expired API key', async () => {
+      const expiredKey = {
+        ...mockApiKey,
+        key: 'sk_live_expired123',
+        revoked: false,
+        expiresAt: new Date(Date.now() - 86400000), // Expired
+      };
+      mockPrismaService.apiKey.findUnique.mockResolvedValue(expiredKey);
+
+      await expect(
+        service.validateApiKey('sk_live_expired123'),
+      ).rejects.toThrow(UnauthorizedException);
     });
   });
 });

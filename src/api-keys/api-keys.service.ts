@@ -5,7 +5,6 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import * as bcrypt from 'bcrypt';
 import { CreateApiKeyDto, RolloverApiKeyDto } from './dto';
 import { ApiKeyResponse } from './types/api-key.types';
 
@@ -13,7 +12,6 @@ import { ApiKeyResponse } from './types/api-key.types';
 export class ApiKeysService {
   private readonly MAX_ACTIVE_KEYS = 5;
   private readonly KEY_PREFIX = 'sk_live_';
-  private readonly SALT_ROUNDS = 10;
 
   constructor(private prisma: PrismaService) {}
 
@@ -94,18 +92,15 @@ export class ApiKeysService {
     const apiKey = this.generateApiKey();
     const keyPrefix = `${this.KEY_PREFIX}${apiKey.slice(this.KEY_PREFIX.length, this.KEY_PREFIX.length + 8)}xxxxx`;
 
-    // Hash the API key for storage
-    const keyHash = await bcrypt.hash(apiKey, this.SALT_ROUNDS);
-
     // Convert expiry to date
     const expiresAt = this.convertExpiryToDate(createDto.expiry);
 
-    // Create API key in database
+    // Create API key in database (store plain key)
     await this.prisma.apiKey.create({
       data: {
         userId,
         name: createDto.name,
-        keyHash,
+        key: apiKey, // Store plain key
         keyPrefix,
         permissions: createDto.permissions,
         expiresAt,
@@ -170,18 +165,15 @@ export class ApiKeysService {
     const apiKey = this.generateApiKey();
     const keyPrefix = `${this.KEY_PREFIX}${apiKey.slice(this.KEY_PREFIX.length, this.KEY_PREFIX.length + 8)}xxxxx`;
 
-    // Hash the new API key
-    const keyHash = await bcrypt.hash(apiKey, this.SALT_ROUNDS);
-
     // Convert expiry to date
     const expiresAt = this.convertExpiryToDate(rolloverDto.expiry);
 
-    // Create new API key with same permissions
+    // Create new API key with same permissions (store plain key)
     await this.prisma.apiKey.create({
       data: {
         userId,
         name: expiredKey.name, // Use same name or could allow customization
-        keyHash,
+        key: apiKey, // Store plain key
         keyPrefix,
         permissions: expiredKey.permissions, // Reuse same permissions
         expiresAt,
@@ -205,30 +197,33 @@ export class ApiKeysService {
       throw new UnauthorizedException('API key is required');
     }
 
-    // Find all API keys (we need to check each one since keys are hashed)
-    // In production, you might want to optimize this with a lookup table
-    const allKeys = await this.prisma.apiKey.findMany({
+    // Find API key by plain key value
+    const keyRecord = await this.prisma.apiKey.findUnique({
       where: {
-        revoked: false,
-        expiresAt: {
-          gt: new Date(),
-        },
+        key: apiKey,
       },
     });
 
-    // Check each key hash
-    for (const keyRecord of allKeys) {
-      const isValid = await bcrypt.compare(apiKey, keyRecord.keyHash);
-      if (isValid) {
-        return {
-          userId: keyRecord.userId,
-          apiKeyId: keyRecord.id,
-          permissions: keyRecord.permissions,
-        };
-      }
+    if (!keyRecord) {
+      throw new UnauthorizedException('Invalid API key');
     }
 
-    throw new UnauthorizedException('Invalid or expired API key');
+    // Check if key is revoked
+    if (keyRecord.revoked) {
+      throw new UnauthorizedException('API key has been revoked');
+    }
+
+    // Check if key is expired
+    const now = new Date();
+    if (keyRecord.expiresAt <= now) {
+      throw new UnauthorizedException('API key has expired');
+    }
+
+    return {
+      userId: keyRecord.userId,
+      apiKeyId: keyRecord.id,
+      permissions: keyRecord.permissions,
+    };
   }
 
   //Revoke an API key
@@ -255,32 +250,47 @@ export class ApiKeysService {
     });
   }
 
-  // Get all API keys for a user (for management purposes)
+  // Get all API keys for a user with optional filtering by status
+  // status: 'active' | 'revoked' | 'all' (default: 'all')
 
-  async getUserApiKeys(userId: string): Promise<
+  async getUserApiKeys(
+    userId: string,
+    status: 'active' | 'revoked' | 'all' = 'all',
+  ): Promise<
     Array<{
       id: string;
       name: string;
+      key: string;
       keyPrefix: string;
       permissions: string[];
       expiresAt: Date;
       revoked: boolean;
       createdAt: Date;
+      isActive: boolean;
     }>
   > {
-    const keys: Array<{
-      id: string;
-      name: string;
-      keyPrefix: string;
-      permissions: string[];
-      expiresAt: Date;
-      revoked: boolean;
-      createdAt: Date;
-    }> = await this.prisma.apiKey.findMany({
-      where: { userId },
+    const now = new Date();
+    const where: {
+      userId: string;
+      revoked?: boolean;
+      expiresAt?: { gt: Date };
+    } = { userId };
+
+    // Apply filters based on status
+    if (status === 'active') {
+      where.revoked = false;
+      where.expiresAt = { gt: now };
+    } else if (status === 'revoked') {
+      where.revoked = true;
+    }
+    // If status is 'all', no additional filters
+
+    const keys = await this.prisma.apiKey.findMany({
+      where,
       select: {
         id: true,
         name: true,
+        key: true,
         keyPrefix: true,
         permissions: true,
         expiresAt: true,
@@ -289,6 +299,29 @@ export class ApiKeysService {
       },
       orderBy: { createdAt: 'desc' },
     });
-    return keys;
+
+    // Map to include isActive flag
+    const result: Array<{
+      id: string;
+      name: string;
+      key: string;
+      keyPrefix: string;
+      permissions: string[];
+      expiresAt: Date;
+      revoked: boolean;
+      createdAt: Date;
+      isActive: boolean;
+    }> = keys.map((key) => ({
+      id: key.id,
+      name: key.name,
+      key: key.key,
+      keyPrefix: key.keyPrefix,
+      permissions: key.permissions,
+      expiresAt: key.expiresAt,
+      revoked: key.revoked,
+      createdAt: key.createdAt,
+      isActive: !key.revoked && key.expiresAt > now,
+    }));
+    return result;
   }
 }
