@@ -64,7 +64,7 @@ describe('ApiKeysService', () => {
 
       expect(result).toHaveProperty('api_key');
       expect(result).toHaveProperty('expires_at');
-      expect(result.api_key).toMatch(/^sk_live_/);
+      expect(result.api_key).toMatch(/^jara_api_/);
       expect(mockPrismaService.apiKey.create).toHaveBeenCalled();
     });
 
@@ -176,13 +176,13 @@ describe('ApiKeysService', () => {
     it('should validate API key successfully', async () => {
       const mockApiKeyWithKey = {
         ...mockApiKey,
-        key: 'sk_live_test123',
+        key: 'jara_api_test123',
         revoked: false,
         expiresAt: new Date(Date.now() + 86400000), // Not expired
       };
       mockPrismaService.apiKey.findUnique.mockResolvedValue(mockApiKeyWithKey);
 
-      const result = await service.validateApiKey('sk_live_test123');
+      const result = await service.validateApiKey('jara_api_test123');
 
       expect(result).toEqual({
         userId: mockApiKey.userId,
@@ -190,46 +190,46 @@ describe('ApiKeysService', () => {
         permissions: mockApiKey.permissions,
       });
       expect(mockPrismaService.apiKey.findUnique).toHaveBeenCalledWith({
-        where: { key: 'sk_live_test123' },
+        where: { key: 'jara_api_test123' },
       });
     });
 
     it('should throw UnauthorizedException for invalid API key', async () => {
       mockPrismaService.apiKey.findUnique.mockResolvedValue(null);
 
-      await expect(service.validateApiKey('sk_live_invalid')).rejects.toThrow(
+      await expect(service.validateApiKey('jara_api_invalid')).rejects.toThrow(
         UnauthorizedException,
       );
       expect(mockPrismaService.apiKey.findUnique).toHaveBeenCalledWith({
-        where: { key: 'sk_live_invalid' },
+        where: { key: 'jara_api_invalid' },
       });
     });
 
     it('should throw UnauthorizedException for revoked API key', async () => {
       const revokedKey = {
         ...mockApiKey,
-        key: 'sk_live_revoked123',
+        key: 'jara_api_revoked123',
         revoked: true,
         expiresAt: new Date(Date.now() + 86400000),
       };
       mockPrismaService.apiKey.findUnique.mockResolvedValue(revokedKey);
 
       await expect(
-        service.validateApiKey('sk_live_revoked123'),
+        service.validateApiKey('jara_api_revoked123'),
       ).rejects.toThrow(UnauthorizedException);
     });
 
     it('should throw UnauthorizedException for expired API key', async () => {
       const expiredKey = {
         ...mockApiKey,
-        key: 'sk_live_expired123',
+        key: 'jara_api_expired123',
         revoked: false,
         expiresAt: new Date(Date.now() - 86400000), // Expired
       };
       mockPrismaService.apiKey.findUnique.mockResolvedValue(expiredKey);
 
       await expect(
-        service.validateApiKey('sk_live_expired123'),
+        service.validateApiKey('jara_api_expired123'),
       ).rejects.toThrow(UnauthorizedException);
     });
   });

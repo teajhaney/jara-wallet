@@ -58,7 +58,7 @@ describe('ApiKeysController', () => {
       };
 
       const mockResponse = {
-        api_key: 'sk_live_test123456789',
+        api_key: 'jara_api_test123456789',
         expires_at: new Date().toISOString(),
       };
 
@@ -82,7 +82,7 @@ describe('ApiKeysController', () => {
       };
 
       const mockResponse = {
-        api_key: 'sk_live_new123456789',
+        api_key: 'jara_api_new123456789',
         expires_at: new Date().toISOString(),
       };
 

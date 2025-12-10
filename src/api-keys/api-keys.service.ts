@@ -11,7 +11,7 @@ import { ApiKeyResponse } from './types/api-key.types';
 @Injectable()
 export class ApiKeysService {
   private readonly MAX_ACTIVE_KEYS = 5;
-  private readonly KEY_PREFIX = 'sk_live_';
+  private readonly KEY_PREFIX = 'jara_api_';
 
   constructor(private prisma: PrismaService) {}
 
