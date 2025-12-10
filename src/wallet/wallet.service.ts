@@ -2,10 +2,12 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaystackService } from './paystack.service';
 import { Prisma } from '@prisma/client';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 
 @Injectable()
 export class WalletService {
@@ -209,7 +211,30 @@ export class WalletService {
     const wallet = await this.getWalletByUserId(userId);
 
     // Generate unique transaction reference
-    const reference = this.paystackService.generateReference();
+    // Retry if reference collision occurs (unlikely but possible)
+    const maxAttempts = 5;
+    let reference: string | undefined;
+
+    for (let attempts = 0; attempts < maxAttempts; attempts++) {
+      const candidateReference = this.paystackService.generateReference();
+
+      // Check if reference already exists
+      const existingTransaction = await this.prisma.transaction.findUnique({
+        where: { reference: candidateReference },
+      });
+
+      if (!existingTransaction) {
+        reference = candidateReference; // Reference is unique, proceed
+        break;
+      }
+    }
+
+    // TypeScript guard: ensure reference is defined
+    if (!reference) {
+      throw new BadRequestException(
+        'Failed to generate unique transaction reference. Please try again.',
+      );
+    }
 
     // Initialize Paystack transaction
     const userEmail: string = user.email; // Type assertion after null check
@@ -225,20 +250,34 @@ export class WalletService {
     );
 
     // Create transaction record as PENDING
-    await this.prisma.transaction.create({
-      data: {
-        userId: userId,
-        walletId: wallet.id,
-        type: 'DEPOSIT',
-        amount: BigInt(amount),
-        status: 'PENDING',
-        reference: reference,
-        metadata: {
-          paystackAccessCode: paystackResponse.access_code,
-          paystackReference: paystackResponse.reference,
-        } as Prisma.InputJsonValue,
-      },
-    });
+    // Handle potential race condition where reference might be created between check and create
+    try {
+      await this.prisma.transaction.create({
+        data: {
+          userId: userId,
+          walletId: wallet.id,
+          type: 'DEPOSIT',
+          amount: BigInt(amount),
+          status: 'PENDING',
+          reference: reference,
+          metadata: {
+            paystackAccessCode: paystackResponse.access_code,
+            paystackReference: paystackResponse.reference,
+          } as Prisma.InputJsonValue,
+        },
+      });
+    } catch (error) {
+      // Handle unique constraint violation (P2002)
+      if (
+        error instanceof PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException(
+          'Transaction reference already exists. Please try again.',
+        );
+      }
+      throw error; // Re-throw other errors
+    }
 
     return {
       authorization_url: paystackResponse.authorization_url,

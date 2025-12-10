@@ -1,8 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  NotFoundException,
+  BadRequestException,
+  ConflictException,
+} from '@nestjs/common';
 import { WalletService } from './wallet.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaystackService } from './paystack.service';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 
 describe('WalletService', () => {
   let service: WalletService;
@@ -162,8 +167,13 @@ describe('WalletService', () => {
     };
     const mockPaystackResponse = {
       authorization_url: 'https://checkout.paystack.com/xxx',
+      access_code: 'access-code-123',
       reference: 'ref-123',
     };
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
 
     it('should initialize deposit successfully', async () => {
       const mockUser = {
@@ -173,6 +183,7 @@ describe('WalletService', () => {
       const generatedReference = 'JARA_1234567890_ABC123';
       mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
       mockPrismaService.wallet.findUnique.mockResolvedValue(mockWallet);
+      mockPrismaService.transaction.findUnique.mockResolvedValue(null); // No existing transaction
       mockPaystackService.generateReference.mockReturnValue(generatedReference);
       mockPaystackService.initializeTransaction.mockResolvedValue(
         mockPaystackResponse,
@@ -187,13 +198,124 @@ describe('WalletService', () => {
       expect(result.authorization_url).toBe(
         mockPaystackResponse.authorization_url,
       );
-      expect(result.reference).toBe(generatedReference); // Service returns the generated reference, not Paystack's
+      expect(result.reference).toBe(generatedReference);
       expect(mockPrismaService.user.findUnique).toHaveBeenCalledWith({
         where: { id: userId },
         select: { id: true, email: true },
       });
+      expect(mockPrismaService.transaction.findUnique).toHaveBeenCalledWith({
+        where: { reference: generatedReference },
+      });
       expect(mockPaystackService.generateReference).toHaveBeenCalled();
       expect(mockPaystackService.initializeTransaction).toHaveBeenCalled();
+      expect(mockPrismaService.transaction.create).toHaveBeenCalled();
+    });
+
+    it('should retry if reference collision occurs', async () => {
+      const mockUser = {
+        id: userId,
+        email: 'test@example.com',
+      };
+      const firstReference = 'JARA_1234567890_COLLISION';
+      const secondReference = 'JARA_1234567890_UNIQUE';
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+      mockPrismaService.wallet.findUnique.mockResolvedValue(mockWallet);
+      // First reference exists, second is unique
+      mockPrismaService.transaction.findUnique
+        .mockResolvedValueOnce({ id: 'existing-tx' }) // Collision
+        .mockResolvedValueOnce(null); // Unique
+      mockPaystackService.generateReference
+        .mockReturnValueOnce(firstReference)
+        .mockReturnValueOnce(secondReference);
+      mockPaystackService.initializeTransaction.mockResolvedValue(
+        mockPaystackResponse,
+      );
+      mockPrismaService.transaction.create.mockResolvedValue({
+        id: 'tx-123',
+        reference: secondReference,
+      });
+
+      const result = await service.initializeDeposit(userId, amount);
+
+      expect(result.reference).toBe(secondReference);
+      expect(mockPaystackService.generateReference).toHaveBeenCalledTimes(2);
+      expect(mockPrismaService.transaction.findUnique).toHaveBeenCalledTimes(2);
+    });
+
+    it('should throw BadRequestException if all reference attempts fail', async () => {
+      const mockUser = {
+        id: userId,
+        email: 'test@example.com',
+      };
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+      mockPrismaService.wallet.findUnique.mockResolvedValue(mockWallet);
+      // All references exist (collision)
+      mockPrismaService.transaction.findUnique.mockResolvedValue({
+        id: 'existing-tx',
+      });
+      mockPaystackService.generateReference.mockReturnValue(
+        'JARA_1234567890_COLLISION',
+      );
+
+      await expect(service.initializeDeposit(userId, amount)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(mockPaystackService.generateReference).toHaveBeenCalledTimes(5);
+    });
+
+    it('should throw ConflictException if duplicate reference detected during create', async () => {
+      const mockUser = {
+        id: userId,
+        email: 'test@example.com',
+      };
+      const generatedReference = 'JARA_1234567890_ABC123';
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+      mockPrismaService.wallet.findUnique.mockResolvedValue(mockWallet);
+      mockPrismaService.transaction.findUnique.mockResolvedValue(null); // No existing transaction initially
+      mockPaystackService.generateReference.mockReturnValue(generatedReference);
+      mockPaystackService.initializeTransaction.mockResolvedValue(
+        mockPaystackResponse,
+      );
+
+      // Simulate Prisma unique constraint violation
+      const prismaError = new PrismaClientKnownRequestError(
+        'Unique constraint failed',
+        {
+          code: 'P2002',
+          clientVersion: '5.0.0',
+        },
+      );
+      mockPrismaService.transaction.create.mockRejectedValue(prismaError);
+
+      await expect(service.initializeDeposit(userId, amount)).rejects.toThrow(
+        ConflictException,
+      );
+    });
+
+    it('should throw BadRequestException if amount is less than 100 kobo', async () => {
+      await expect(service.initializeDeposit(userId, 50)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw NotFoundException if user not found', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+
+      await expect(service.initializeDeposit(userId, amount)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('should throw BadRequestException if user email is missing', async () => {
+      const mockUser = {
+        id: userId,
+        email: null,
+      };
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+
+      await expect(service.initializeDeposit(userId, amount)).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
@@ -313,6 +435,124 @@ describe('WalletService', () => {
       await expect(
         service.transfer(userId, recipientWalletNumber, amount),
       ).rejects.toThrow(NotFoundException);
+      expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('should throw BadRequestException if transferring to own wallet', async () => {
+      const selfTransferWallet = {
+        ...mockSenderWallet,
+        walletNumber: recipientWalletNumber, // Same as recipient
+      };
+      mockPrismaService.wallet.findUnique.mockResolvedValueOnce(
+        selfTransferWallet,
+      );
+
+      await expect(
+        service.transfer(userId, recipientWalletNumber, amount),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('updateTransactionFromWebhook', () => {
+    const reference = 'JARA_1234567890_ABC123';
+    const mockTransaction = {
+      id: 'tx-123',
+      userId: 'user-123',
+      walletId: 'wallet-123',
+      type: 'DEPOSIT',
+      amount: BigInt(100000),
+      status: 'PENDING',
+      reference,
+      wallet: {
+        id: 'wallet-123',
+        balance: BigInt(0),
+      },
+      metadata: {},
+    };
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    it('should update transaction status to SUCCESS and credit wallet', async () => {
+      mockPrismaService.transaction.findUnique.mockResolvedValue(
+        mockTransaction,
+      );
+      mockPrismaService.$transaction.mockImplementation(
+        async (callback: (tx: unknown) => Promise<unknown>) => {
+          const tx = {
+            transaction: {
+              update: jest.fn().mockResolvedValue({
+                ...mockTransaction,
+                status: 'SUCCESS',
+              }),
+            },
+            wallet: {
+              update: jest.fn().mockResolvedValue({
+                ...mockTransaction.wallet,
+                balance: BigInt(100000),
+              }),
+            },
+          };
+          return callback(tx);
+        },
+      );
+
+      await service.updateTransactionFromWebhook(reference, 'success');
+
+      expect(mockPrismaService.transaction.findUnique).toHaveBeenCalledWith({
+        where: { reference },
+        include: { wallet: true },
+      });
+      expect(mockPrismaService.$transaction).toHaveBeenCalled();
+    });
+
+    it('should skip processing if transaction already SUCCESS (idempotency)', async () => {
+      const alreadyProcessedTransaction = {
+        ...mockTransaction,
+        status: 'SUCCESS',
+      };
+      mockPrismaService.transaction.findUnique.mockResolvedValue(
+        alreadyProcessedTransaction,
+      );
+
+      await service.updateTransactionFromWebhook(reference, 'success');
+
+      expect(mockPrismaService.transaction.findUnique).toHaveBeenCalled();
+      expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('should handle failed transaction without crediting wallet', async () => {
+      mockPrismaService.transaction.findUnique.mockResolvedValue(
+        mockTransaction,
+      );
+      mockPrismaService.$transaction.mockImplementation(
+        async (callback: (tx: unknown) => Promise<unknown>) => {
+          const tx = {
+            transaction: {
+              update: jest.fn().mockResolvedValue({
+                ...mockTransaction,
+                status: 'FAILED',
+              }),
+            },
+            wallet: {
+              update: jest.fn(),
+            },
+          };
+          return callback(tx);
+        },
+      );
+
+      await service.updateTransactionFromWebhook(reference, 'failed');
+
+      expect(mockPrismaService.$transaction).toHaveBeenCalled();
+    });
+
+    it('should return early if transaction not found', async () => {
+      mockPrismaService.transaction.findUnique.mockResolvedValue(null);
+
+      await service.updateTransactionFromWebhook(reference, 'success');
+
       expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
     });
   });

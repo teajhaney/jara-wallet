@@ -14,4 +14,3 @@ export class GetApiKeysQueryDto {
   })
   status?: 'active' | 'revoked' | 'all' = 'all';
 }
-

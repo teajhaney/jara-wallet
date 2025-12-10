@@ -10,4 +10,3 @@ export class RevokeApiKeyDto {
   @IsNotEmpty({ message: 'api_key_id is required' })
   api_key_id: string;
 }
-

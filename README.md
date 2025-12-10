@@ -490,6 +490,38 @@ npm run test:cov
 - **CORS Protection**: Configurable CORS settings
 - **Input Validation**: Request validation using class-validator
 
+## 🛡️ Error Handling & Idempotency
+
+The API implements robust error handling and idempotency guarantees:
+
+### Paystack Reference Uniqueness
+
+- **Unique Transaction References**: All Paystack transaction references are guaranteed to be unique
+- **Automatic Retry Logic**: If a reference collision occurs (extremely rare), the system automatically retries up to 5 times
+- **Clear Error Messages**: Returns `ConflictException` with a clear message if a duplicate reference is detected
+
+### Webhook Idempotency
+
+- **Double-Credit Prevention**: Webhooks are idempotent - processing the same webhook multiple times will not result in double-crediting
+- **Status Checking**: Before processing a webhook, the system checks if the transaction has already been processed
+- **Atomic Updates**: All webhook processing is wrapped in database transactions to ensure consistency
+
+### Transfer Atomicity
+
+- **All-or-Nothing**: Transfers are atomic - either both sender and recipient balances are updated, or neither
+- **No Partial Deductions**: The system ensures no partial balance deductions can occur
+- **Balance Verification**: Double-checks balance after decrement to prevent negative balances
+
+### Clear Error Messages
+
+The API returns clear, actionable error messages for common scenarios:
+
+- **Insufficient Balance**: `BadRequestException('Insufficient balance')`
+- **Invalid API Key**: `UnauthorizedException('Invalid API key')`
+- **Expired API Key**: `UnauthorizedException('API key has expired')`
+- **Missing Permissions**: `ForbiddenException('Insufficient permissions. Required: <permissions>')`
+- **Duplicate Reference**: `ConflictException('Transaction reference already exists. Please try again.')`
+
 ## 📖 Additional Resources
 
 - [NestJS Documentation](https://docs.nestjs.com/)
