@@ -49,7 +49,7 @@ async function bootstrap() {
   // Log Swagger endpoint
   const appUrl =
     configService.get<string>('appUrl') || `http://localhost:${port}`;
-  const swaggerUrl = `${appUrl}/api`;
+  const swaggerUrl = `${appUrl}/docs`;
 
   console.log(`📚 Swagger documentation available at: ${swaggerUrl}`);
 }

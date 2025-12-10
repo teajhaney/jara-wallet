@@ -26,9 +26,9 @@ function getSwaggerHtml(): string {
   <script src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-bundle.js"></script>
   <script src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-standalone-preset.js"></script>
   <script>
-    window.onload = function() {
+      window.onload = function() {
       window.ui = SwaggerUIBundle({
-        url: "./api-json",
+        url: "./docs-json",
         dom_id: '#swagger-ui',
         deepLinking: true,
         persistAuthorization: true,
@@ -107,6 +107,7 @@ export function setupSwagger(app: INestApplication): void {
         },
         'API-Key',
       )
+      .addTag('auth', 'Authentication endpoints')
       .addTag('wallet', 'Wallet management endpoints')
       .addTag('keys', 'API key management endpoints')
       .addTag('app', 'Application health check')
@@ -119,16 +120,16 @@ export function setupSwagger(app: INestApplication): void {
 
     // Serve the OpenAPI JSON spec
     httpAdapter.get(
-      '/api-json',
+      '/docs-json',
       (req: unknown, res: { json: (doc: object) => void }) => {
         res.json(document);
       },
     );
 
     // Serve custom Swagger UI HTML that loads from CDN
-    // Uses relative URL (./api-json) to avoid CORS issues
+    // Uses relative URL (./docs-json) to avoid CORS issues
     httpAdapter.get(
-      '/api',
+      '/docs',
       (
         req: unknown,
         res: { type: (t: string) => { send: (html: string) => void } },
@@ -137,9 +138,9 @@ export function setupSwagger(app: INestApplication): void {
       },
     );
 
-    console.log('✅ Swagger documentation initialized successfully at /api');
-    console.log(`📚 Swagger UI available at: ${appUrl}/api`);
-    console.log(`📄 OpenAPI JSON available at: ${appUrl}/api-json`);
+    console.log('✅ Swagger documentation initialized successfully at /docs');
+    console.log(`📚 Swagger UI available at: ${appUrl}/docs`);
+    console.log(`📄 OpenAPI JSON available at: ${appUrl}/docs-json`);
   } catch (error) {
     console.error('❌ Failed to initialize Swagger:', error);
     if (error instanceof Error) {

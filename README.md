@@ -109,8 +109,8 @@ The API will be available at `http://localhost:3000`
 
 Once the server is running, access the interactive Swagger documentation at:
 
-**Local**: `http://localhost:3000/api`  
-**Production**: `https://jara-wallet.vercel.app/api`
+**Local**: `http://localhost:3000/docs`  
+**Production**: `https://jara-wallet.vercel.app/docs`
 
 The Swagger UI provides:
 

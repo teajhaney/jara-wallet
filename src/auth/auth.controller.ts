@@ -5,7 +5,6 @@ import {
   UseGuards,
   UnauthorizedException,
 } from '@nestjs/common';
-import { ApiExcludeEndpoint } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { AuthService } from './auth.service';
 import { GoogleAuthGuard } from './guards/google-auth.guard';
@@ -14,14 +13,19 @@ import type {
   GoogleProfile,
   JwtTokenResponse,
 } from './types/auth.types';
+import {
+  ApiAuthTag,
+  ApiGoogleAuth,
+  ApiGoogleAuthCallback,
+} from './auth.swagger';
 
+@ApiAuthTag()
 @Controller('auth')
 export class AuthController {
   constructor(private authService: AuthService) {}
-
   @Get('google')
   @UseGuards(GoogleAuthGuard)
-  @ApiExcludeEndpoint()
+  @ApiGoogleAuth()
   async googleAuth() {
     // This will redirect to Google OAuth consent screen
     // The guard handles the redirect automatically
@@ -29,7 +33,7 @@ export class AuthController {
 
   @Get('google/callback')
   @UseGuards(GoogleAuthGuard)
-  @ApiExcludeEndpoint()
+  @ApiGoogleAuthCallback()
   async googleAuthCallback(
     @Req() req: AuthenticatedRequest,
   ): Promise<JwtTokenResponse> {
